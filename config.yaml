@@ -1,0 +1,50 @@
+# Configuration for Fused Vision + Inertial Sensing System
+
+general:
+  seed: 42
+  device: "cpu"  # auto-detected at runtime, but can be overridden ("cpu", "cuda", "mps")
+
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  
+  # Dataset subdirectories (expected under raw_dir)
+  tyrenet: "tyrenet"
+  tyre_quality: "tyre_quality"
+  tyre_condition: "tyre_condition"
+  tire_texture: "tire_texture"
+  synthetic_rul: "synthetic_rul"
+  
+  # Subsampling option for large synthetic RUL tabular dataset to avoid OOM / slow CPU training
+  rul_subsample_size: 100000
+
+models:
+  wear_classifier:
+    backbone: "resnet18"
+    pretrained: true
+    num_classes: 3  # New, Serviceable, Unusable
+    batch_size: 32
+    learning_rate: 0.001
+    epochs: 3
+    save_path: "models/wear_classifier/best_wear_classifier.pth"
+    tread_depth_weak_labels:
+      New: 8.0
+      Serviceable: 4.0
+      Unusable: 1.6
+      
+  rul_predictor:
+    save_path: "models/rul_predictor/rul_model.pkl"
+    # XGBoost hyperparameters
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+
+  alignment_heuristic:
+    asymmetry_threshold: 0.15  # Score above which possible misalignment is flagged
+    edge_low_threshold: 50
+    edge_high_threshold: 150
+    gaussian_blur_ksize: 5
+
+outputs:
+  output_dir: "outputs"
+  heatmap_dir: "outputs/heatmaps"

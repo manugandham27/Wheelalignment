@@ -1,0 +1,44 @@
+# Virtual Environment
+venv/
+ENV/
+env/
+.env
+.env.*
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Node/Frontend Cache & Build
+node_modules/
+dist/
+build/
+.svelte-kit/
+.next/
+.nuxt/
+out/
+.docusaurus/
+.cache/
+frontend/node_modules/
+frontend/dist/
+
+# OS Specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

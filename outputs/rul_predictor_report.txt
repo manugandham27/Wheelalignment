@@ -1,0 +1,15 @@
+============================================================
+           TABULAR RUL PREDICTOR EVALUATION REPORT
+============================================================
+
+1. REMAINING USEFUL LIFE (RUL) METRICS
+----------------------------------------
+Mean Absolute Error (MAE) : 301.64 km
+Root Mean Sq. Error (RMSE): 408.37 km
+R-squared Score (R2)      : 0.9984
+
+2. TABULAR TREAD DEPTH ESTIMATE METRICS
+----------------------------------------
+Mean Absolute Error (MAE) : 0.1157 mm
+Root Mean Sq. Error (RMSE): 0.1472 mm
+R-squared Score (R2)      : 0.9939

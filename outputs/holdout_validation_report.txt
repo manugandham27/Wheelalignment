@@ -1,0 +1,34 @@
+============================================================
+            HOLDOUT TREAD-DEPTH VALIDATION REPORT
+============================================================
+
+1. PERFORMANCE STATISTICS
+----------------------------------------
+Total Test Samples        : 20
+Mean Absolute Error (MAE) : 1.0465 mm
+Root Mean Sq. Error (RMSE): 1.2747 mm
+Average Bias (Pred - True): -1.0085 mm
+
+2. SAMPLE-LEVEL RESULTS
+----------------------------------------
+     filename  manual_depth_mm  estimated_depth_mm  error_mm
+ h_tire_0.jpg              8.0                6.20     -1.80
+ h_tire_1.jpg              7.5                6.20     -1.30
+ h_tire_2.jpg              6.8                6.20     -0.60
+ h_tire_3.jpg              5.5                2.89     -2.61
+ h_tire_4.jpg              4.8                2.89     -1.91
+ h_tire_5.jpg              4.0                2.88     -1.12
+ h_tire_6.jpg              3.2                2.87     -0.33
+ h_tire_7.jpg              2.5                2.88      0.38
+ h_tire_8.jpg              1.8                0.96     -0.84
+ h_tire_9.jpg              1.5                0.95     -0.55
+h_tire_10.jpg              8.2                6.20     -2.00
+h_tire_11.jpg              7.1                6.20     -0.90
+h_tire_12.jpg              6.2                6.20     -0.00
+h_tire_13.jpg              5.0                2.89     -2.11
+h_tire_14.jpg              4.4                2.86     -1.54
+h_tire_15.jpg              3.8                2.89     -0.91
+h_tire_16.jpg              2.9                2.89     -0.01
+h_tire_17.jpg              2.1                0.96     -1.14
+h_tire_18.jpg              1.6                0.96     -0.64
+h_tire_19.jpg              1.2                0.96     -0.24

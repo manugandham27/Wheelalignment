@@ -1,0 +1,21 @@
+============================================================
+      WEAR CLASSIFIER & TREAD DEPTH REGRESSION EVALUATION REPORT (UPSCALED FUSION)
+============================================================
+
+1. CLASSIFICATION METRICS (Wear Severity)
+----------------------------------------
+              precision    recall  f1-score   support
+
+         New       1.00      1.00      1.00         8
+ Serviceable       1.00      1.00      1.00         8
+    Unusable       1.00      1.00      1.00         8
+
+    accuracy                           1.00        24
+   macro avg       1.00      1.00      1.00        24
+weighted avg       1.00      1.00      1.00        24
+
+2. REGRESSION METRICS (Continuous Tread Depth in mm)
+----------------------------------------
+Mean Absolute Error (MAE) : 0.6520 mm
+Root Mean Sq. Error (RMSE): 0.7254 mm
+R-squared Score (R2)      : 0.9251
