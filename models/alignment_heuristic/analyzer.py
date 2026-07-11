@@ -123,12 +123,23 @@ def analyze_wear_asymmetry(image_path, config=None):
     explanations = []
     confidence = min(1.0, asymmetry_score / (asymmetry_threshold * 2.0))
     
+    # Calculate quantitative metrology
     if misalignment_flag:
         if density_left < density_right:
+            # Left-edge wear (lower edge density on left) -> negative camber & toe-out
+            estimated_camber_deg = -asymmetry_score * 2.5
+            estimated_toe_mm = -asymmetry_score * 4.0
             explanations.append("Excessive wear detected on the LEFT edge. Possible toe-out or negative camber misalignment.")
         else:
+            # Right-edge wear (lower edge density on right) -> positive camber & toe-in
+            estimated_camber_deg = asymmetry_score * 2.5
+            estimated_toe_mm = asymmetry_score * 4.0
             explanations.append("Excessive wear detected on the RIGHT edge. Possible toe-in or positive camber misalignment.")
     else:
+        # Default to small values reflecting normal variations
+        estimated_camber_deg = (density_right - density_left) * 0.5
+        estimated_toe_mm = (density_right - density_left) * 1.0
+        
         shoulder_avg = (density_left + density_right) / 2.0
         if density_center < (shoulder_avg * 0.75):
             explanations.append("Center tread is more worn than shoulders, suggesting chronic over-inflation.")
@@ -137,6 +148,27 @@ def analyze_wear_asymmetry(image_path, config=None):
         else:
             explanations.append("Tread wear appears symmetric and normal. Alignment is likely within limits.")
 
+    diag_str = " ".join(explanations)
+    diag_str += f" Estimated Camber: {estimated_camber_deg:+.2f}°, Estimated Toe: {estimated_toe_mm:+.2f} mm."
+
+    # Save unwarped and edges images for dashboard CV visualizer
+    import os
+    base_name = os.path.basename(image_path)
+    img_no_ext = os.path.splitext(base_name)[0]
+    heatmap_dir = config["outputs"].get("heatmap_dir", "outputs/heatmaps") if config else "outputs/heatmaps"
+    os.makedirs(heatmap_dir, exist_ok=True)
+    
+    unwarped_path = os.path.join(heatmap_dir, f"unwarped_{img_no_ext}.jpg")
+    edges_path = os.path.join(heatmap_dir, f"edges_{img_no_ext}.jpg")
+    
+    cv2.imwrite(unwarped_path, unwarped)
+    
+    # Generate edge image with vertical zone boundaries
+    edges_color = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+    cv2.line(edges_color, (left_bound, 0), (left_bound, uw_h), (0, 0, 255), 2)
+    cv2.line(edges_color, (right_bound, 0), (right_bound, uw_h), (0, 0, 255), 2)
+    cv2.imwrite(edges_path, edges_color)
+
     return {
         "asymmetry_score": asymmetry_score,
         "density_left": density_left,
@@ -144,5 +176,9 @@ def analyze_wear_asymmetry(image_path, config=None):
         "density_right": density_right,
         "alignment_flag": bool(misalignment_flag),
         "alignment_confidence": float(confidence),
-        "diagnosis": " ".join(explanations)
+        "estimated_camber_deg": float(estimated_camber_deg),
+        "estimated_toe_mm": float(estimated_toe_mm),
+        "unwarped_path": unwarped_path,
+        "edges_path": edges_path,
+        "diagnosis": diag_str
     }

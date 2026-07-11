@@ -145,6 +145,32 @@ Detailed commands will be documented as the modules are developed in subsequent 
 
 ---
 
+## Technical Developments & Novel Enhancements
+
+This prototype has been augmented with several custom implementations to bridge deep learning models with visual metrology, edge optimization, and explainable AI:
+
+### 1. Physics-Guided Monotonicity Loss
+*   **Location**: [train.py](file:///Users/manu/python/Capstonetire/models/wear_classifier/train.py)
+*   **Novelty**: The training objective is constrained with a differentiable **pairwise monotonicity loss** function. It calculates pairwise sign differences of mileage and predicted tread depth inside each batch, penalizing predictions where a high-mileage tire is estimated to have a deeper tread than a lower-mileage tire. This prevents physically impossible predictions under out-of-distribution (OOD) telemetry inputs.
+
+### 2. Quantitative Camber & Toe Metrology
+*   **Location**: [analyzer.py](file:///Users/manu/python/Capstonetire/models/alignment_heuristic/analyzer.py)
+*   **Novelty**: Extends the classical computer vision edge-density analyzer. Instead of simple binary indicators, the module computes **estimated camber angle (in degrees)** and **estimated toe deviation (in mm)** based on horizontal Canny edge-density slope coefficients, identifying camber direction (positive vs negative) and toe alignment (toe-in vs toe-out).
+
+### 3. Visual TSA Showroom (Unwarping & Zonal Edges)
+*   **Location**: [app.py](file:///Users/manu/python/Capstonetire/dashboard/app.py)
+*   **Novelty**: The dashboard renders the intermediate steps of the CV alignment checker side-by-side: showing the **homographically unwarped tread region** (flattening the tire perspective) next to the **zonal edge grid**, showing vertical demarcation boundaries separating Left, Center, and Right zones.
+
+### 4. Interactive Tire Size & Load Compatibility Validator
+*   **Location**: [app.py](file:///Users/manu/python/Capstonetire/dashboard/app.py)
+*   **Novelty**: Incorporates a dimension parser calculating sidewall height, overall tire diameter, and tire circumference from standard ISO strings (e.g. `205/55R16`). It automatically validates the selected tire profile against the vehicle body class (e.g. SUV, Hatchback), generating real-time compatibility alerts for insufficient load capacity or clearance issues.
+
+### 5. Dual-Explainability Visualizer
+*   **Location**: [app.py](file:///Users/manu/python/Capstonetire/dashboard/app.py)
+*   **Novelty**: Streamlit interface displays tabbed views of both **Grad-CAM Saliency Maps** (coarse convolutional activation zones) and **Integrated Gradients (IG)** attribution maps (high-resolution pixel attributions showing exact cracks or bald tread blocks), enhancing mechanics' trust in the AI diagnostics.
+
+---
+
 ## Related Work & Academic References
 
 ### Literature Review & Prior Art

@@ -166,12 +166,20 @@ class UnifiedPredictionPipeline:
         alignment_results = {
             "alignment_flag": False,
             "alignment_confidence": 0.0,
+            "estimated_camber_deg": 0.0,
+            "estimated_toe_mm": 0.0,
+            "unwarped_path": "",
+            "edges_path": "",
             "diagnosis": "No alignment diagnostics available."
         }
         try:
             cv_results = analyze_wear_asymmetry(image_path, self.config)
             alignment_results["alignment_flag"] = cv_results["alignment_flag"]
             alignment_results["alignment_confidence"] = cv_results["alignment_confidence"]
+            alignment_results["estimated_camber_deg"] = cv_results["estimated_camber_deg"]
+            alignment_results["estimated_toe_mm"] = cv_results["estimated_toe_mm"]
+            alignment_results["unwarped_path"] = cv_results.get("unwarped_path", "")
+            alignment_results["edges_path"] = cv_results.get("edges_path", "")
             alignment_results["diagnosis"] = cv_results["diagnosis"]
         except Exception as e:
             print(f"Error running alignment heuristic: {str(e)}")
@@ -244,6 +252,10 @@ class UnifiedPredictionPipeline:
             "predicted_rul_uncertainty_km": rul_uncertainty,
             "alignment_flag": alignment_results["alignment_flag"],
             "alignment_confidence": round(alignment_results["alignment_confidence"], 3),
+            "estimated_camber_deg": round(alignment_results["estimated_camber_deg"], 3),
+            "estimated_toe_mm": round(alignment_results["estimated_toe_mm"], 3),
+            "unwarped_path": alignment_results["unwarped_path"],
+            "edges_path": alignment_results["edges_path"],
             "explanation_heatmap_path": explanation_heatmap_path,
             "explanation_ig_path": explanation_ig_path,
             "diagnosis": alignment_results["diagnosis"]

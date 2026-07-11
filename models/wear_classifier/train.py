@@ -11,6 +11,27 @@ from data.data_loader import check_and_generate_mock_data, load_tyre_condition_i
 from models.wear_classifier.dataset import TireWearDataset
 from models.wear_classifier.model import DualHeadTireCNN
 
+def pairwise_monotonicity_loss(pred_depths, mileages):
+    """
+    Differentiable pairwise monotonicity loss.
+    Penalizes cases where mileage is higher but predicted tread depth is also higher.
+    """
+    if pred_depths.size(0) < 2:
+        return torch.tensor(0.0, device=pred_depths.device)
+    
+    # Calculate pairwise differences (pred_j - pred_i) and (mileage_j - mileage_i)
+    d_depth = pred_depths.unsqueeze(1) - pred_depths.unsqueeze(0)
+    d_mileage = mileages.unsqueeze(1) - mileages.unsqueeze(0)
+    
+    # Sign of mileage difference: +1 if mileage_j > mileage_i, -1 if mileage_j < mileage_i, 0 if equal
+    d_mileage_sign = torch.sign(d_mileage)
+    
+    # Violation occurs if mileage_j > mileage_i but pred_j > pred_i (both signs positive)
+    # or if mileage_j < mileage_i but pred_j < pred_i (both signs negative)
+    violations = torch.clamp(d_mileage_sign * d_depth, min=0.0)
+    
+    return violations.mean()
+
 def train_model():
     """
     Train the upscaled multimodal fusion wear classifier.
@@ -27,16 +48,16 @@ def train_model():
     
     if len(image_paths) == 0:
         raise ValueError("No images found for training.")
-
+ 
     print(f"Loaded {len(image_paths)} images from Tyre Condition Classification Dataset.")
-
+ 
     # Stratified split into train and validation sets (80/20)
     train_paths, val_paths, train_labels, val_labels = train_test_split(
         image_paths, labels, test_size=0.2, random_state=config["general"]["seed"], stratify=labels
     )
     
     print(f"Train size: {len(train_paths)}, Val size: {len(val_paths)}")
-
+ 
     # Define transforms
     train_transforms = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -45,22 +66,22 @@ def train_model():
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-
+ 
     val_transforms = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-
+ 
     # Dataset & Dataloaders
     weak_label_cfg = config["models"]["wear_classifier"]["tread_depth_weak_labels"]
     train_dataset = TireWearDataset(train_paths, train_labels, transform=train_transforms, weak_label_cfg=weak_label_cfg)
     val_dataset = TireWearDataset(val_paths, val_labels, transform=val_transforms, weak_label_cfg=weak_label_cfg)
-
+ 
     batch_size = config["models"]["wear_classifier"]["batch_size"]
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
-
+ 
     # Initialize model
     backbone = config["models"]["wear_classifier"].get("backbone", "resnet18")
     pretrained = config["models"]["wear_classifier"]["pretrained"]
@@ -71,7 +92,7 @@ def train_model():
     
     model = DualHeadTireCNN(backbone_name=backbone, pretrained=pretrained, num_classes=num_classes)
     model.to(device)
-
+ 
     # Loss and optimizer
     criterion_cls = nn.CrossEntropyLoss()
     criterion_reg = nn.MSELoss()
@@ -85,13 +106,14 @@ def train_model():
     
     # Ensure directory containing save_path exists
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
+ 
     print("Starting training loop...")
     for epoch in range(epochs):
         model.train()
         running_loss = 0.0
         running_cls_loss = 0.0
         running_reg_loss = 0.0
+        running_phys_loss = 0.0
         correct = 0
         total = 0
         
@@ -110,7 +132,12 @@ def train_model():
             # Losses
             loss_cls = criterion_cls(cls_out, cls_lbls)
             loss_reg = criterion_reg(reg_out, reg_depths)
-            loss = loss_cls + 0.5 * loss_reg
+            
+            # Physics-guided monotonicity constraint (mileage is at index 10 of tab_feats)
+            mileages = tab_feats[:, 10]
+            loss_phys = pairwise_monotonicity_loss(reg_out, mileages)
+            
+            loss = loss_cls + 0.5 * loss_reg + 0.1 * loss_phys
             
             loss.backward()
             optimizer.step()
@@ -119,6 +146,7 @@ def train_model():
             running_loss += loss.item() * imgs.size(0)
             running_cls_loss += loss_cls.item() * imgs.size(0)
             running_reg_loss += loss_reg.item() * imgs.size(0)
+            running_phys_loss += loss_phys.item() * imgs.size(0)
             
             _, predicted = torch.max(cls_out, 1)
             total += cls_lbls.size(0)
@@ -127,6 +155,7 @@ def train_model():
         epoch_loss = running_loss / len(train_dataset)
         epoch_cls_loss = running_cls_loss / len(train_dataset)
         epoch_reg_loss = running_reg_loss / len(train_dataset)
+        epoch_phys_loss = running_phys_loss / len(train_dataset)
         epoch_acc = correct / total * 100
         
         # Validation pass
@@ -169,7 +198,7 @@ def train_model():
         epoch_val_mae = val_mae / len(val_dataset)
         
         print(f"Epoch {epoch+1:02d}/{epochs:02d} | "
-              f"Train Loss: {epoch_loss:.4f} (Cls: {epoch_cls_loss:.4f}, Reg: {epoch_reg_loss:.4f}), Acc: {epoch_acc:.2f}% | "
+              f"Train Loss: {epoch_loss:.4f} (Cls: {epoch_cls_loss:.4f}, Reg: {epoch_reg_loss:.4f}, Phys: {epoch_phys_loss:.4f}), Acc: {epoch_acc:.2f}% | "
               f"Val Loss: {epoch_val_loss:.4f} (Cls: {epoch_val_cls_loss:.4f}, Reg: {epoch_val_reg_loss:.4f}), Acc: {epoch_val_acc:.2f}%, MAE: {epoch_val_mae:.2f}mm")
         
         # Save best model

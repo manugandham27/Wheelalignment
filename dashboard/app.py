@@ -10,6 +10,86 @@ import json
 
 from utils.helper import load_config
 from pipeline.predict_pipeline import UnifiedPredictionPipeline
+import numpy as np
+
+def calculate_tire_dimensions(size_str):
+    """
+    Calculate physical tire dimensions (width, sidewall height, diameter, circumference)
+    from standard size strings like '205/55R16'.
+    """
+    try:
+        parts = size_str.split('/')
+        width = float(parts[0])
+        aspect_ratio = float(parts[1].split('R')[0])
+        rim_diameter_inch = float(parts[1].split('R')[1])
+        
+        sidewall_height_mm = width * (aspect_ratio / 100.0)
+        rim_diameter_mm = rim_diameter_inch * 25.4
+        total_diameter_mm = rim_diameter_mm + 2 * sidewall_height_mm
+        total_diameter_inch = total_diameter_mm / 25.4
+        circumference_mm = np.pi * total_diameter_mm
+        
+        return {
+            "width": width,
+            "aspect_ratio": aspect_ratio,
+            "rim_diameter": rim_diameter_inch,
+            "sidewall_height": sidewall_height_mm,
+            "total_diameter_mm": total_diameter_mm,
+            "total_diameter_inch": total_diameter_inch,
+            "circumference_mm": circumference_mm
+        }
+    except Exception:
+        return None
+
+def render_alignment_gauge(label, val, min_val, max_val, unit, target_val=0.0):
+    """
+    Renders a premium visual alignment progress gauge with colored safety boundaries (Green/Yellow/Red).
+    """
+    # Normalized position from 0% to 100%
+    pct = (val - min_val) / (max_val - min_val) * 100
+    pct = max(0, min(100, pct))
+    
+    # Determine color zone
+    abs_val = abs(val - target_val)
+    if abs_val <= 0.5:
+        color = "#2ecc71" # Safe green
+        status = "Optimal"
+    elif abs_val <= 1.2:
+        color = "#f1c40f" # Alert yellow
+        status = "Borderline"
+    else:
+        color = "#e74c3c" # Warning red
+        status = "Critical Misalignment"
+        
+    html = f"""
+    <div style="margin-bottom:15px; padding:12px; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:#b0b3c0; font-weight:600; margin-bottom:4px;">
+            <span>{label}</span>
+            <span style="color:{color};">{val:+.2f} {unit} ({status})</span>
+        </div>
+        <div style="position:relative; width:100%; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; margin:6px 0;">
+            <!-- Target marker (0.0) -->
+            <div style="position:absolute; left:50%; top:-2px; width:2px; height:12px; background:#fff; z-index:2;"></div>
+            <!-- Value marker -->
+            <div style="position:absolute; left:{pct}%; top:-4px; width:10px; height:16px; background:{color}; border-radius:2px; border:1px solid #fff; transform:translateX(-5px); z-index:3;"></div>
+            <!-- Zones background -->
+            <div style="position:absolute; left:0; top:0; width:100%; height:100%; display:flex; border-radius:4px; overflow:hidden; opacity:0.25;">
+                <div style="width:30%; height:100%; background:#e74c3c;"></div>
+                <div style="width:15%; height:100%; background:#f1c40f;"></div>
+                <div style="width:10%; height:100%; background:#2ecc71;"></div>
+                <div style="width:15%; height:100%; background:#f1c40f;"></div>
+                <div style="width:30%; height:100%; background:#e74c3c;"></div>
+            </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#686c75;">
+            <span>{min_val:+.1f}</span>
+            <span>0.0 (Target)</span>
+            <span>{max_val:+.1f}</span>
+        </div>
+    </div>
+    """
+    return html
+
 
 # Config page details
 st.set_page_config(
@@ -178,9 +258,10 @@ with st.sidebar.form("vehicle_params_form"):
     weather_cond = st.selectbox("Dominant Weather", ["Dry", "Humid", "Cold", "Rainy"], index=["Dry", "Humid", "Cold", "Rainy"].index(p["weather_condition"]))
     retreaded = st.selectbox("Retreaded Tire Status", ["No", "Yes"], index=["No", "Yes"].index(p["retreaded"]))
     
+    vehicle_model = st.selectbox("Vehicle Body Class", ["Sedan", "SUV", "Hatchback", "Truck", "Coupe"], index=0)
+    
     # Hidden defaults or simplified parameters mapped to Kaggle schema
     fuel_type = "Petrol"
-    vehicle_model = "Sedan"
     transmission_type = "Automatic"
     country = "Germany"
     max_power = 150
@@ -281,6 +362,31 @@ with col1:
         # Display image preview
         img = Image.open(active_img_path)
         st.image(img, caption="Loaded Input Tread Photograph", use_column_width=True)
+        
+        # --- Tire Dimension & Fitment Validator ---
+        st.markdown("---")
+        st.markdown("### 📐 Tire Dimension Metrology")
+        dimensions = calculate_tire_dimensions(size)
+        if dimensions:
+            st.markdown(f"""
+            <div class="metric-card" style="margin-bottom: 10px; padding: 15px;">
+                <div style="font-weight:700; font-size:1.1rem; color:#fff; margin-bottom:5px;">Dimension Readings ({size})</div>
+                <div style="font-size:0.85rem; color:#b0b3c0; line-height:1.5;">
+                    • <b>Section Width:</b> {dimensions['width']:.0f} mm<br/>
+                    • <b>Sidewall Height:</b> {dimensions['sidewall_height']:.1f} mm<br/>
+                    • <b>Overall Diameter:</b> {dimensions['total_diameter_inch']:.2f} in ({dimensions['total_diameter_mm']:.1f} mm)<br/>
+                    • <b>Circumference:</b> {dimensions['circumference_mm']:.1f} mm
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Compatibility Validation
+            if vehicle_model in ["SUV", "Truck"] and size in ["195/65R15", "205/55R16"]:
+                st.error(f"⚠️ **Fitment Alert:** Selected profile ({size}) has an insufficient load capacity for a heavy **{vehicle_model}**. Risk of rapid wear, sidewall collapse, or structural failure!")
+            elif vehicle_model == "Hatchback" and size in ["245/40R18", "225/65R17"]:
+                st.warning(f"⚠️ **Fitment Warning:** Selected profile ({size}) is oversized for a **Hatchback**. Risk of wheel well rubbing, steering binding, and severe speedometer error.")
+            else:
+                st.success(f"✅ **Fitment Status:** Compatible tire profile ({size}) for Selected Vehicle Class (**{vehicle_model}**).")
     else:
         st.warning("⚠️ Please upload a tire photo or select a mock image to run diagnostics.")
 
@@ -351,14 +457,42 @@ with col2:
         # Show diagnostics notes
         st.info(f"🔎 **Diagnostic Insights:** {res['diagnosis']}")
 
-        # Show Grad-CAM Heatmap visualization
-        if res.get("explanation_heatmap_path") and os.path.exists(res["explanation_heatmap_path"]):
-            st.markdown("### 🔍 Explainability Heatmap (Grad-CAM)")
-            st.write("Red regions indicate high-importance zones influencing the severity classification (e.g. balded areas/wear edges).")
-            heatmap_img = Image.open(res["explanation_heatmap_path"])
-            st.image(heatmap_img, caption="Grad-CAM Wear Classifier Heatmap Overlay", use_column_width=True)
+        # Show Camber and Toe dials
+        st.markdown("### 📊 Wheel Alignment Metrology")
+        camber_html = render_alignment_gauge("Estimated Camber Angle", res["estimated_camber_deg"], -3.0, 3.0, "°")
+        toe_html = render_alignment_gauge("Estimated Toe Deviation", res["estimated_toe_mm"], -5.0, 5.0, "mm")
+        st.markdown(camber_html, unsafe_allow_html=True)
+        st.markdown(toe_html, unsafe_allow_html=True)
+
+        # Show TSA CV Showroom
+        if res.get("unwarped_path") and os.path.exists(res["unwarped_path"]):
+            st.markdown("### 🛞 Classical CV Tread Symmetry Analysis (TSA)")
+            st.write("Perspective distortion correction using homographic unwarping and zonal Canny edge analysis:")
+            subcol_cv1, subcol_cv2 = st.columns(2)
+            with subcol_cv1:
+                st.image(Image.open(res["unwarped_path"]), caption="Homographically Unwarped Tread (Perspective Corrected)", use_column_width=True)
+            with subcol_cv2:
+                st.image(Image.open(res["edges_path"]), caption="Zonal Canny Edges (Left / Center / Right Zones)", use_column_width=True)
+
+        # Show Dual-Explainability Visualizer (Grad-CAM vs. Integrated Gradients)
+        st.markdown("### 🔍 Explainability & Attention Analysis")
+        st.write("Compare CNN visual attention regions (Grad-CAM) with pixel-level mathematical wear attributions (Integrated Gradients).")
+        tab_gc, tab_ig = st.tabs(["Grad-CAM Saliency", "Integrated Gradients (High-Res)"])
+        
+        with tab_gc:
+            if res.get("explanation_heatmap_path") and os.path.exists(res["explanation_heatmap_path"]):
+                st.image(Image.open(res["explanation_heatmap_path"]), caption="Grad-CAM Wear Classifier Heatmap Overlay", use_column_width=True)
+            else:
+                st.info("No Grad-CAM explanation path available.")
+                
+        with tab_ig:
+            if res.get("explanation_ig_path") and os.path.exists(res["explanation_ig_path"]):
+                st.image(Image.open(res["explanation_ig_path"]), caption="Integrated Gradients (IG) Wear Saliency Map", use_column_width=True)
+            else:
+                st.info("No Integrated Gradients explanation path available.")
             
         # Display full raw JSON output for transparency
+        st.write("---")
         with st.expander("📝 View Pipeline Raw JSON Output"):
             st.json(res)
     else:
